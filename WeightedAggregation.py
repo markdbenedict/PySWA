@@ -57,7 +57,7 @@ class SWA():
        
         print '%f seconds'%(time.time()-curr)
         #variance matrix
-        #self.S=sparse.lil_matrix((self.NumNodes,self.NumNodes))
+        self.S=spmatrix.ll_mat(self.NumNodes,self.NumNodes)
         
         print 'calculating L'
         curr=time.time()
@@ -81,9 +81,10 @@ class SWA():
         self.V=self.A.copy()
         self.V.generalize() #0 if Aij ==0
         theNons=self.V.keys()
-        theNons=zip(theNons[0],theNons[1])
-        for item in theNons:
-            self.V[item]=1 #1 if Aij!=0
+        #theNons=zip(theNons[0],theNons[1])
+        self.V.put(1.0,theNons[0],theNons[1])#1 if Aij!=0
+        #for item in theNons:
+        #    self.V[item]=1 #1 if Aij!=0
         print '%f seconds'%(time.time()-curr)
         
         print 'calculating G'
