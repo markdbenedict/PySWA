@@ -1,0 +1,7 @@
+Python code needed to implement Segmentation By Weighted Aggregation
+
+Initial version is Python only, small datasets
+
+Second version will move computationally intensive parts to a static C library
+
+Third version will reimplement the C library to take advantage of CUDA
