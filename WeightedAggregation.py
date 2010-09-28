@@ -6,6 +6,7 @@ import scipy.misc.pilutil as pilutil
 from pylab import *
 from scipy.ndimage import *
 from pysparse import spmatrix as spmatrix
+#from scipy.sparse import *
 
 import time
 
@@ -28,14 +29,17 @@ class SWA():
         self.theta=0.025#coarsening strength threshold
         self.gamma = 0.05#saliency threshold
         self.d1=0.15#sharpening threshold
-        self.sigma=1#min level segment detection threshold
-        self.rho=1#variance rescaling threshold level
+        self.sigma=2#min level segment detection threshold
+        self.rho=2#variance rescaling threshold level
         
         #setup edge or "coupling" matrix
         numRow=self.Image.shape[0]
         numCol=self.Image.shape[1]
         #there will be N*(N-1) connections in each direction of a square matrix
-        self.A=spmatrix.ll_mat_sym(self.NumNodes,numRow*(numCol-1)+numCol*(numRow-1))
+        #self.A=lil_matrix((self.NumNodes,self.NumNodes))
+        #self.A=spmatrix.ll_mat_sym(self.NumNodes,numRow*(numCol-1)+numCol*(numRow-1))
+        self.A=spmatrix.ll_mat(self.NumNodes,self.NumNodes,numRow*(numCol-1)+numCol*(numRow-1))
+        
         print 'calculating A'
         curr=time.time()
         #calculate all the neighbor in each direction
@@ -47,13 +51,13 @@ class SWA():
             for b in range(horizNeighbors.shape[1]):
                 i=a*numCol+b
                 j=i+1
-                self.A[j,i]=horizNeighbors[a,b]
+                self.A[j,i]=self.A[i,j]=horizNeighbors[a,b]
                 
         for a in range(vertNeighbors.shape[0]):
             for b in range(vertNeighbors.shape[1]):
                 i=a*numCol+b
                 j=i+numCol
-                self.A[j,i]=vertNeighbors[a,b]
+                self.A[i,j]=self.A[j,i]=vertNeighbors[a,b]
        
         print '%f seconds'%(time.time()-curr)
         #variance matrix
@@ -73,6 +77,8 @@ class SWA():
         self.A.take(theDiag,theDiagIdx,theDiagIdx)
         self.A.matvec(theOnes,theSums)
         self.L.put(theSums-theDiag,theDiagIdx,theDiagIdx)
+        
+        
         print '%f seconds'%(time.time()-curr)
         
         print 'calculating V'
@@ -126,30 +132,49 @@ class SWA():
     #uses A, Saliency (Gamma), gamma, theta to coarsen graph, reducing the
     #number of C points per level
     def coarsenAMG(self):
-        import BST3
         print 'calculating AHat'
         curr=time.time()
         
         M=self.A.shape[0] #number or rows in A
         AHat=self.A.copy() #0 if Aij ==0
+        AHat.generalize()
         #zero out diagonal
-        theRange=arange(M)
+        theRange=arange(M,dtype=int)
         theSums=zeros(M,dtype=float64)
+        theBuff=zeros(M,dtype=float64)
         AHat.put(theSums,theRange,theRange)
         #calculate row sums for weakness criterion
         theOnes=ones(M,dtype=float64)
+        theOnesInt=ones(M,dtype=int)
         AHat.matvec(theOnes,theSums)#calcs row sums, stores in theSums
         #eliminate (zero out) Connections from A that are "weak"
         theNons=AHat.keys()
-        theNons=zip(theNons[0],theNons[1])
+        #theNons=zip(theNons[0],theNons[1])
         theSums = theSums*self.theta #scale theSums by coarsening threshold
-        theLambda=zeros(M,dtype=int8) #number of nonzeros in each row
-        for item in theNons:
-            if AHat[item] < theSums[item[0]]: 
-                AHat[item]=0
+        theLambda=zeros(M,dtype=float64) #number of nonzeros in each row
+        #theValues=AHat.values()
+        #theItems=AHat.items()
+        #theGreater = [ item[0][0] for item in theItems if item[1]>theSums[item[0][0]] ]
+        #theLesser = [ item[0] for item in theItems if item[1]<=theSums[item[0][0]] ]
+        #
+        #for idx in theGreater:
+        #    theLambda[idx]+=1
+        #
+        #for item in theLesser:
+        #    AHat[item]=0
+            
+        for item in AHat.items():
+            theIdx=item[0][0]
+            if item[1] < theSums[theIdx]:
+                AHat[item[0]]=0 #zero out weak connections
             else:
-                theLambda[item[0]]+=1
+                theLambda[theIdx]+=1 #update number of strong connections for i
         
+        #take each column and numpy compare to 0 AHat.matvec_transp(theOnes,theLambda)
+        #for colNum in range(M):
+        #    AHat.take(theBuff,colNum*theOnesInt,theRange)
+        #    theLambda[colNum]=(theBuff>theSums[colNum]).sum()
+
         T=zeros(M,dtype=int8) #tracks which set node is assigned,0=unassigned,1=C Point, 2=F Point
         #test nodes for saliency
         salientNodes = self.Saliency<self.gamma #error with inital Saliency calc?
@@ -158,7 +183,7 @@ class SWA():
         
         C=None
         
-        print '%f seconds'%(time.time()-curr)
+        print '%f seconds Setup time'%(time.time()-curr)
         
         print 'starting on unassigned nodes'
         #while there are unassigned nodes remaining
@@ -177,7 +202,7 @@ class SWA():
         print '%f seconds to generate Priority Queue'%(time.time()-curr)
         curr=time.time()
         while 0 in T:
-            if counter%100==0:
+            if counter%1000==0:
                 print '%d of %d'%(counter,len(where(T==0)[0]))
                 print 'sortTime=%f\nkGenTime=%f\nkFiltTime=%f\nhFiltTime=%f'%(sortTime,kGenTime,kFiltTime,hFiltTime)
             counter+=1
@@ -230,17 +255,18 @@ class SWA():
             
         print '%f seconds'%(time.time()-curr)
         return C
+
     
     #final assignment of pixels to most appropriate segment
     def assignPixels(self):
-        
-        U=1
-    
+        return
+ 
 if __name__ == "__main__":
-    anImage = pilutil.imread('testImage.png',flatten=True)
+    #anImage = pilutil.imread('testImage.png',flatten=True)
+    anImage = pilutil.imread('bob00177.jpg',flatten=True)
     theSWA=SWA()
     theSWA.SetImage(anImage)
-    U=theSWA.imageVCycle()
-    theSWA.assignPixels(U)
+    C=theSWA.imageVCycle()
+    theSWA.assignPixels(C)
     print 'finished setup'
 
