@@ -137,7 +137,6 @@ class SWA():
         
         M=self.A.shape[0] #number or rows in A
         AHat=self.A.copy() #0 if Aij ==0
-        AHat.generalize()
         #zero out diagonal
         theRange=arange(M,dtype=int)
         theSums=zeros(M,dtype=float64)
@@ -199,15 +198,16 @@ class SWA():
         lambdaVals=theLambda[theZeros]
         sortFunc=lambda a,b: cmp(a[0],b[0]) or cmp(b[1],a[1])
         combo = sorted(zip(lambdaVals,theZeros),cmp=sortFunc,reverse=False)
-        print '%f seconds to generate Priority Queue'%(time.time()-curr)
+        print '%f seconds to generate Priority Queue'%(time.time()-curr) #typically 4 seconds
         curr=time.time()
         while 0 in T:
             if counter%1000==0:
                 print '%d of %d'%(counter,len(where(T==0)[0]))
                 print 'sortTime=%f\nkGenTime=%f\nkFiltTime=%f\nhFiltTime=%f'%(sortTime,kGenTime,kFiltTime,hFiltTime)
+                print time.time()-curr
             counter+=1
             
-            temp=time.time()
+            #temp=time.time()
             #theZeros=where(T==0)[0]#find locations of zeros
             #lambdaVals=theLambda[theZeros]
             #default python sorts on first tuple val, then second in case of ties
@@ -216,10 +216,9 @@ class SWA():
             #combo = sorted(zip(lambdaVals,theZeros),cmp=sortFunc,reverse=True)
             #combo.sort(cmp=sortFunc)
             j=combo.pop()[1]#find max lambda when T==0, node will influence most neighbors
-            sortTime+=time.time()-temp
+            #sortTime+=time.time()-temp
             
-            
-            temp=time.time()
+            #temp=time.time()
             T[j]=1
             theLambda[j]=0#point is now a C Point
             #print 'j=%d and lambda=%d'%(j,combo[0][0])
@@ -229,12 +228,12 @@ class SWA():
             theStrongConnect=where(theSums>0)[0]
             theUnassigned = where(T[theStrongConnect]==0)[0]
             K=theStrongConnect[theUnassigned]#selects only item from theStrong that have T==0
-            kGenTime+=time.time()-temp
+            #kGenTime+=time.time()-temp
             #print 'K vector has %d points'%len(K)
             
-            temp=time.time()
+            #temp=time.time()
+            T[K]=2
             for k in K:
-                T[k]=2
                 combo.remove((theLambda[k],k))
                 theLambda[k]=0
                 AHat.take(theSums,theOnes*k,theRange)
@@ -248,8 +247,8 @@ class SWA():
                     del combo[theIndex]
                     theLambda[h]+=1
                     combo.insert(theIndex,(theLambda[h],h))
-                hFiltTime+=time.time()-temp2
-            kFiltTime+=time.time()-temp
+                #hFiltTime+=time.time()-temp2
+            #kFiltTime+=time.time()-temp
             
             C=where(T==1)[0]
             
